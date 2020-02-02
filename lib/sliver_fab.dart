@@ -14,26 +14,50 @@ class SliverFab extends StatefulWidget {
   ///Expanded height of FlexibleAppBar
   final double expandedHeight;
 
+  ///The radius for the top corners that will overlay other slivers
+  final double topCornersRadius;
+
   ///Number of pixels from top from which the [floatingWidget] should start shrinking.
   ///E.g. If your SliverAppBar is pinned, I would recommend this leaving as default 96.0
   ///     If you want [floatingActionButton] to shrink earlier, increase the value.
   final double topScalingEdge;
 
+
+  ///Number of pixels from the top from which the [floatingWidget] should disappear.
+  ///E.g., if your SliverAppBar is pinned, you may wish for it to disappear before it
+  ///reaches the SliverAppbar. When this is true, increase the value.
+  final double disappearAt;
+
   ///Position of the widget.
   final FloatingPosition floatingPosition;
+
+  /// Changes edge behavior to account for [SliverAppBar.pinned].
+  ///
+  /// Hides the edge when the [ScrollController.offset] reaches the collapsed
+  /// height of the [SliverAppBar] to prevent it from overlapping the app bar.
+  ///
+  /// For best results, it is recommended you set this to true if you are using
+  /// a SliverAppBar that is using expandedHeight.
+  final bool hasPinnedAppBar;
 
   SliverFab({
     @required this.slivers,
     @required this.floatingWidget,
     this.floatingPosition = const FloatingPosition(right: 16.0),
     this.expandedHeight = 256.0,
+    this.topCornersRadius = 0.0,
     this.topScalingEdge = 96.0,
+    this.disappearAt = 0.0,
+    this.hasPinnedAppBar = false,
   }) {
     assert(slivers != null);
     assert(floatingWidget != null);
     assert(floatingPosition != null);
     assert(expandedHeight != null);
+    assert(topCornersRadius != null);
     assert(topScalingEdge != null);
+    assert(disappearAt != null);
+    assert(hasPinnedAppBar != null);
   }
 
   @override
@@ -66,8 +90,52 @@ class SliverFabState extends State<SliverFab> {
           controller: scrollController,
           slivers: widget.slivers,
         ),
+        if (widget.topCornersRadius > 0) _buildEdge(),
         _buildFab(),
       ],
+    );
+  }
+
+  Widget _buildEdge() {
+    var paddingTop = MediaQuery.of(context).padding.top;
+
+    var defaultOffset = (paddingTop + widget.expandedHeight) - widget.topCornersRadius;
+
+    var top = defaultOffset;
+    var edgeSize = widget.topCornersRadius;
+
+    if (scrollController.hasClients) {
+      double offset = scrollController.offset;
+      top -= offset > 0 ? offset : 0;
+
+      if (widget.hasPinnedAppBar) {
+        // Hide edge to prevent overlapping the toolbar during scroll.
+        var breakpoint = widget.expandedHeight - kToolbarHeight - widget.topCornersRadius;
+
+        if (offset >= breakpoint) {
+          edgeSize = widget.topCornersRadius - (offset - breakpoint);
+          if (edgeSize < 0) {
+            edgeSize = 0;
+          }
+
+          top += (widget.topCornersRadius - edgeSize);
+        }
+      }
+    }
+
+    return Positioned(
+      top: top,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: edgeSize,
+        decoration: BoxDecoration(
+          color: Theme.of(context).canvasColor,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(widget.topCornersRadius),
+          ),
+        ),
+      ),
     );
   }
 
@@ -79,7 +147,7 @@ class SliverFabState extends State<SliverFab> {
         (widget.floatingPosition.top ?? 0) -
         defaultFabSize / 2;
 
-    final double scale0edge = widget.expandedHeight - kToolbarHeight;
+    final double scale0edge = widget.expandedHeight - kToolbarHeight - widget.disappearAt;
     final double scale1edge = defaultTopMargin - widget.topScalingEdge;
 
     double top = defaultTopMargin;
